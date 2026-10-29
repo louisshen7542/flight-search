@@ -1,6 +1,6 @@
 ---
 name: google-flights
-description: Search Google Flights for flight prices and schedules using browser automation. Use when user asks to search flights, find airfare, compare prices, check flight availability, or look up routes. Triggers include "search flights", "find flights", "how much is a flight", "flights from X to Y", "cheapest flight", "flight prices", "airfare", "flight schedule", "nonstop flights", "when should I fly", "cheaper via home", "hub routing", "stopover trick".
+description: Search Google Flights for flight prices and schedules using browser automation. Use when user asks to search flights, find airfare, compare prices, check flight availability, or look up routes. Triggers include "search flights", "find flights", "how much is a flight", "flights from X to Y", "cheapest flight", "flight prices", "airfare", "flight schedule", "nonstop flights", "when should I fly".
 allowed-tools: Bash(agent-browser:*)
 ---
 
@@ -14,7 +14,6 @@ Search Google Flights via agent-browser to find flight prices, schedules, and av
 - User wants to know flight prices between cities
 - User asks about flight schedules or availability
 - User wants to find the cheapest flight for specific dates
-- User wants a cheaper fare by starting the ticket in another country and routing through their home hub (see Hub-Routing Strategy)
 
 ## When NOT to Use
 
@@ -315,62 +314,6 @@ After selecting "Multi-city" trip type, the form shows one row per leg:
 
 Fill each leg's destination + date in order, then click "Search".
 
-## Hub-Routing Strategy: Book From Another Country via Home
-
-Network airlines often price a round trip from a third country **through their home hub** below a simple round trip from the hub itself. A traveller living in home country **A** who wants to visit destination **D** can sometimes pay less by booking **B → A → D, D → A → B** on one ticket, with stopovers in A, than by booking **A ⇄ D** directly.
-
-Example (home A = Taiwan, hub carriers EVA Air `BR` / China Airlines `CI`):
-
-```
-Simple:      TPE → FUK,  FUK → TPE                       (A ⇄ D)
-Hub-routed:  CGK → TPE,  TPE → FUK,  FUK → TPE,  TPE → CGK  (B → A → D → A → B, one ticket)
-             └ stopover ┘                    └ stopover ┘
-```
-
-The traveller uses the middle legs (A → D → A) as their trip, and the outer legs (B → A, A → B) for a separate trip to B or as a cheap add-on.
-
-### When to Use
-
-- User asks for "cheaper via home", "start the ticket from another country", "hub routing", "stopover trick", or describes the B → A → D pattern
-- User has a home country with a full-service hub carrier (e.g., Taiwan: EVA Air, China Airlines; Hong Kong: Cathay Pacific; Singapore: Singapore Airlines; Thailand: Thai; Korea: Korean Air, Asiana; Japan: JAL, ANA)
-- User already plans a trip to B, or the A ⇄ D fare on the hub carrier is expensive
-
-### Workflow
-
-1. **Baseline**: search A ⇄ D round trip (URL fast path). Note the cheapest overall fare *and* the cheapest fare on the hub carrier(s).
-2. **Pick candidate B cities**: cities the hub carrier flies nonstop to/from A. Prefer markets where the carrier competes hard (for Taiwan: BKK, SGN, HAN, MNL, CGK, DPS, KUL, SIN, HKG, PEN). Try 2-4 candidates; ask the user if they already have a B in mind.
-3. **Search each candidate as multi-city** (Interactive Workflow, trip type "Multi-city"), 4 legs in order:
-   - Leg 1: B → A (date the trip to B ends, or any date before leg 2)
-   - Leg 2: A → D (user's outbound date)
-   - Leg 3: D → A (user's return date)
-   - Leg 4: A → B (any later date)
-   Use the "Airlines" filter to keep only the hub carrier(s). Results list leg 1 with the **total ticket price**; select a leg 1 flight to see leg 2 options, and so on.
-4. **Quick screen (optional)**: a B ⇄ D round trip URL search (`Flights from CGK to FUK on ... returning ...`) shows whether the hub carrier's fare via A is low before doing the full multi-city search. Stopovers longer than 24h only show in multi-city, and may change the price.
-5. **Compare** the hub-routed total against the baseline. If the user is not otherwise travelling to B, add the cost of getting between A and B (a separate cheap ticket, often on a low-cost carrier).
-
-### Rules to Tell the User
-
-- **Fly every segment in order.** Skipping leg 1 (B → A) makes the airline cancel all later legs. Never suggest skipping segments.
-- **Check the fare rules** before booking: stopovers over 24h in A may cost extra or not be allowed on the cheapest fare, and changes may be restricted.
-- **Same ticket, same carrier family**: the saving only applies when all four legs are on one ticket. "Separate tickets" results are not this strategy.
-- **Booking market**: the fare is priced in B's market (and often B's currency). Booking through Google Flights' link or the airline's B-country site gets that price.
-
-### Output Format
-
-```
-Baseline (TPE ⇄ FUK, China Airlines): NT$12,213
-
-Hub-routed via TPE (one China Airlines ticket):
-1. From Jakarta (CGK) — NT$9,880 total
-   CGK → TPE Jul 5 · TPE → FUK Jul 21 · FUK → TPE Jul 23 · TPE → CGK Jul 28
-   Saving: NT$2,333 (before getting to Jakarta)
-
-2. From Bangkok (BKK) — NT$13,050 total
-   No saving vs baseline
-```
-
-Always state the baseline, each candidate's total, and the saving (or "no saving"). The prices above are layout examples only, not real fares.
-
 ## Output Format
 
 **Always use compact list format** — never markdown tables. Output is typically displayed in chatbot interfaces (Telegram, etc.) where tables render poorly.
@@ -426,7 +369,6 @@ Always state the baseline, each candidate's total, and the saving (or "no saving
 | "Done" ≠ Search | Calendar Done only closes picker |
 | After presenting results, offer booking links | Users almost always want to book - prompt them |
 | Keep results session alive; close `biz` after results | Results session needed for booking clicks; biz only for delta |
-| Hub-routed fares: all legs on one ticket, flown in order | Skipping a leg cancels the rest; "separate tickets" results are not the strategy |
 
 ## Troubleshooting
 
