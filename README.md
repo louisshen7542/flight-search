@@ -33,7 +33,7 @@ npx skills add https://github.com/skillhq/flight-search --skill google-flights
 Want booking links for any of these? Just say which one.
 ```
 
-Economy and business results are fetched in parallel and merged with a delta column so you can see the upgrade cost at a glance.
+Searches are economy only by default. Ask for business class (e.g. "compare cabins") and economy and business results are fetched in parallel and merged with a delta column so you can see the upgrade cost at a glance.
 
 ## Booking Options
 

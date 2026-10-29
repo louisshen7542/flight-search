@@ -23,28 +23,23 @@ Search Google Flights via agent-browser to find flight prices, schedules, and av
 
 ## Session Convention
 
-- **Economy only** (default for domestic): `--session flights`
-- **Economy + Business comparison** (international or user requests): `--session econ` and `--session biz`
+- **Economy only** (default for all routes): `--session flights`
+- **Economy + Business comparison** (only when the user asks): `--session econ` and `--session biz`
 - **Interactive fallback**: `--session flights`
 
-## Domestic vs International Detection
+## Cabin Class Defaults
 
-**Domestic flights default to economy only.** Business class on US domestic routes is typically 3-5x the price and rarely worth showing unless asked.
-
-A flight is **domestic** if both origin and destination are US airports. Common US IATA codes: ATL, BOS, BWI, CLT, DEN, DFW, DTW, EWR, FLL, HNL, IAD, IAH, JFK, LAS, LAX, LGA, MCO, MDW, MIA, MSP, OAK, ORD, PHL, PHX, PDX, SAN, SEA, SFO, SJC, SLC, TPA.
+**All searches default to economy only** — domestic and international alike. Do not run a business class search unless the user asks for it.
 
 **When to show business class:**
-- International flights (always show economy + business comparison)
 - User explicitly asks for "business class" or "business"
-- User asks to "compare cabins" or "show all classes"
+- User asks to "compare cabins", "show all classes", or for the upgrade cost
 
-**When to skip business class:**
-- Domestic US flights (economy only by default)
-- User explicitly asks for "economy" or "cheapest"
+**Otherwise skip business class**, including for international routes.
 
 ## Fast Path: URL-Based Search (Preferred)
 
-Construct a URL with a natural language `?q=` parameter. Loads results directly — **3 commands total**.
+Construct a URL with a natural language `?q=` parameter. Loads results directly — **2 commands total**.
 
 ### URL Template
 
@@ -52,9 +47,9 @@ Construct a URL with a natural language `?q=` parameter. Loads results directly 
 https://www.google.com/travel/flights?q=Flights+from+{ORIGIN}+to+{DEST}+on+{DATE}[+returning+{DATE}][+one+way][+business+class][+N+passengers]
 ```
 
-### Default: Economy Only (Domestic)
+### Default: Economy Only
 
-For domestic flights, run a single session - **2 tool calls total**:
+Run a single session - **2 tool calls total**:
 
 ```bash
 # Open and wait in one call
@@ -67,9 +62,9 @@ agent-browser --session flights snapshot -i
 
 Then present results in **compact list format** (see Output Format section below).
 
-### Economy + Business Comparison (International)
+### Economy + Business Comparison (Only When Asked)
 
-For international flights, run two parallel sessions to show the price delta:
+When the user asks to compare cabins, run two parallel sessions to show the price delta:
 
 ```bash
 # Open both and wait in parallel
@@ -92,17 +87,13 @@ agent-browser --session biz close
 
 ### One Way
 
-Add `+one+way` to the URL. For international, run both economy and business in parallel:
+Add `+one+way` to the URL:
 
 ```bash
-# Domestic (economy only)
-agent-browser --session flights open "https://www.google.com/travel/flights?q=Flights+from+LAX+to+JFK+on+2026-04-15+one+way" && agent-browser --session flights wait --load networkidle
-
-# International (economy + business comparison)
-(agent-browser --session econ open "https://www.google.com/travel/flights?q=Flights+from+LAX+to+LHR+on+2026-04-15+one+way" && agent-browser --session econ wait --load networkidle) &
-(agent-browser --session biz open "https://www.google.com/travel/flights?q=Flights+from+LAX+to+LHR+on+2026-04-15+one+way+business+class" && agent-browser --session biz wait --load networkidle) &
-wait
+agent-browser --session flights open "https://www.google.com/travel/flights?q=Flights+from+LAX+to+LHR+on+2026-04-15+one+way" && agent-browser --session flights wait --load networkidle
 ```
+
+If the user asked for a cabin comparison, add a parallel `--session biz` search with `+one+way+business+class`, as above.
 
 ### When User Asks for Business Only
 
@@ -159,7 +150,7 @@ link "From 20508 Thai baht round trip total. Nonstop flight with Air Japan.
      Total duration 6 hr 5 min. Select flight"
 ```
 
-Parse economy + business snapshots into the **compact list format**:
+Parse the snapshot into the **compact list format** (shown here with an economy + business comparison; see Output Format for economy only):
 
 ```
 1. JAL — Nonstop · 5h 55m
@@ -191,7 +182,7 @@ When the user picks a flight, extract booking options by clicking the flight's `
 
 ```bash
 # User picks flight #N — click the corresponding link from the results snapshot
-# Use --session flights (domestic) or --session econ (international comparison)
+# Use --session flights (default) or --session econ (cabin comparison)
 agent-browser --session flights click @eN
 agent-browser --session flights wait 3000
 agent-browser --session flights snapshot -i
@@ -221,7 +212,7 @@ Extract the provider name, price, and `href` URL from each link.
 
 ### Notes
 
-- **Session lifecycle**: Keep the results session (`flights` or `econ`) alive for booking links. For international comparisons, close `--session biz` immediately after extracting prices. Close the results session after the user gets booking links or declines.
+- **Session lifecycle**: Keep the results session (`flights` or `econ`) alive for booking links. For cabin comparisons, close `--session biz` immediately after extracting prices. Close the results session after the user gets booking links or declines.
 - **If booking panel fails to load**: Re-snapshot and wait longer before retrying.
 
 ## Interactive Workflow (Fallback)
@@ -327,7 +318,7 @@ Fill each leg's destination + date in order, then click "Search".
 
 **Always use compact list format** — never markdown tables. Output is typically displayed in chatbot interfaces (Telegram, etc.) where tables render poorly.
 
-### Economy + Business comparison (default)
+### Economy + Business comparison (only when asked)
 
 ```
 1. JAL — Nonstop · 5h 55m
@@ -343,7 +334,7 @@ Fill each leg's destination + date in order, then click "Search".
    Economy: THB 20,515 · Business: —
 ```
 
-### Economy only
+### Economy only (default)
 
 ```
 1. JAL — Nonstop · 5h 55m
@@ -366,10 +357,10 @@ Fill each leg's destination + date in order, then click "Search".
 
 | Rule | Why |
 |------|-----|
-| Prefer URL fast path | 2 tool calls (domestic) or 3 (international) vs 15+ interactive |
+| Prefer URL fast path | 2 tool calls (3 with a cabin comparison) vs 15+ interactive |
 | Chain open+wait with `&&` | Eliminates a round-trip between tool calls |
-| Skip business for domestic | US domestic business is 3-5x price, rarely useful unless asked |
-| Parallel snapshots with `&` + `wait` | Both snapshots run concurrently for international |
+| Skip business unless asked | Doubles the searches and is rarely needed; only compare cabins when the user asks |
+| Parallel snapshots with `&` + `wait` | Both snapshots run concurrently for cabin comparisons |
 | `wait --load networkidle` | Smarter than fixed `wait 5000` - returns when network settles |
 | Use `fill` not `type` for airports | Clears existing text first |
 | Wait 2s after typing airport codes | Autocomplete needs API roundtrip |
